@@ -1,7 +1,7 @@
 class Mkzhan extends ComicSource {
     name = "漫客栈"
     key = "mkzhan"
-    version = "1.0.0"
+    version = "1.0.1"
     minAppVersion = "1.0.0"
     url = "https://github.com/xswlsbhhh/venera-comic-sources"
 
@@ -20,14 +20,12 @@ class Mkzhan extends ComicSource {
     }
 
     toComic(item) {
-        let tags = []
-        if (item.theme_id) tags = String(item.theme_id).split(",").filter(e => e)
         return new Comic({
             id: String(item.comic_id),
             title: item.title ?? "",
             subtitle: item.chapter_title ?? "",
             cover: item.cover ?? "",
-            tags: tags,
+            tags: [],
             description: item.feature ?? "",
         })
     }
@@ -59,12 +57,12 @@ class Mkzhan extends ComicSource {
         {
             title: "连载中",
             type: "multiPageComicList",
-            load: async (page) => this.loadFilter("order=2&finish=2", page, 12),
+            load: async (page) => this.loadFilter("order=2&finish=1", page, 12),
         },
         {
             title: "已完结",
             type: "multiPageComicList",
-            load: async (page) => this.loadFilter("order=1&finish=1", page, 12),
+            load: async (page) => this.loadFilter("order=1&finish=2", page, 12),
         },
     ]
 
@@ -72,9 +70,7 @@ class Mkzhan extends ComicSource {
         load: async (keyword, options, page) => {
             const url = `https://${this.host}/search/keyword/?keyword=${encodeURIComponent(keyword)}&page_num=${page}&page_size=20`
             const json = await this.getJson(url)
-            if (json.code !== "200") {
-                return { comics: [], maxPage: 1 }
-            }
+            if (json.code !== "200") return { comics: [], maxPage: 1 }
             const data = json.data ?? {}
             const list = data.list ?? []
             const count = parseInt(data.count ?? "0") || 0
@@ -100,9 +96,8 @@ class Mkzhan extends ComicSource {
             }
 
             const tags = {}
-            tags["状态"] = [info.finish === "1" ? "已完结" : "连载中"]
+            tags["状态"] = [info.finish === "1" ? "连载中" : "已完结"]
             if (info.author_title) tags["作者"] = [info.author_title]
-            if (info.theme_id) tags["题材"] = String(info.theme_id).split(",").filter(e => e)
 
             return new ComicDetails({
                 title: info.title ?? "",
@@ -121,7 +116,7 @@ class Mkzhan extends ComicSource {
             const json = await this.getJson(url)
             if (json.code !== "200") throw `章节加载失败: ${json.message}`
             const pages = (json.data ?? {}).page ?? []
-            if (pages.length === 0) throw "该章节可能需要VIP/付费或已下架"
+            if (pages.length === 0) throw "该章节可能需要 VIP / 付费，或已下架"
             return { images: pages.map(e => e.image) }
         },
 
