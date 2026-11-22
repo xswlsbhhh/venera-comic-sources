@@ -2,8 +2,8 @@
   {
     "name": "漫客栈",
     "fileName": "mkzhan.js",
-    "filename": "mkzhan.js",
-    "version": "1.0.1",
-    "description": "国漫、漫画。搜索/分类筛选/详情/目录/看图均已实测通过"
+    "key": "mkzhan",
+    "version": "1.1.0",
+    "description": "国漫站（comic.mkzhan.com）。搜索、分类筛选、详情、目录、章节图片接口已逐项实测通过"
   }
 ]
