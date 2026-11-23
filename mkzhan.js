@@ -1,19 +1,16 @@
 class Mkzhan extends ComicSource {
     name = "漫客栈"
     key = "mkzhan"
-    version = "1.1.0"
+    version = "1.2.0"
     minAppVersion = "1.0.0"
     url = "https://github.com/xswlsbhhh/venera-comic-sources"
 
     apiHost = "comic.mkzcdn.com"
     siteHost = "comic.mkzhan.com"
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-        "Referer": "https://comic.mkzhan.com/",
-    }
+    ua = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+    referer = "https://comic.mkzhan.com/"
 
-    // 题材 ID 对照表（来自站点分类筛选参数）
     themeMap = {
         "1": "霸总", "2": "修真", "3": "恋爱", "4": "校园", "5": "冒险",
         "6": "搞笑", "7": "生活", "8": "热血", "9": "架空", "10": "后宫",
@@ -22,16 +19,21 @@ class Mkzhan extends ComicSource {
         "21": "竞技", "22": "百合", "23": "励志", "24": "同人", "26": "真人",
     }
 
-    async getData(url) {
-        const res = await Network.get(url, this.headers)
-        if (res.status !== 200) throw new Error("HTTP " + res.status)
+    async getJson(url) {
+        const res = await Network.get(url, {
+            headers: {
+                "User-Agent": this.ua,
+                "Referer": this.referer,
+            },
+        })
+        if (res.status !== 200) throw "Invalid status code: " + res.status
         let json
         try {
             json = JSON.parse(res.body)
         } catch (e) {
-            throw new Error("返回内容无法解析")
+            throw "返回内容不是 JSON"
         }
-        if (json.code !== "200") throw new Error(json.message || "接口返回异常")
+        if (json.code !== "200") throw (json.message || "接口返回异常")
         return json.data
     }
 
@@ -46,18 +48,20 @@ class Mkzhan extends ComicSource {
     }
 
     toComic(item) {
+        const parts = []
+        if (item.feature) parts.push(item.feature)
+        if (item.chapter_title) parts.push("更新至 " + item.chapter_title)
         return new Comic({
             id: String(item.comic_id),
             title: item.title || "",
-            subtitle: item.chapter_title || "",
             cover: item.cover || "",
             tags: this.parseThemes(item.theme_id),
-            description: item.feature || "",
+            description: parts.join(" · "),
         })
     }
 
     async loadList(query, page, pageSize) {
-        const data = await this.getData(
+        const data = await this.getJson(
             "https://" + this.apiHost + "/search/filter/?" + query +
             "&page_num=" + page + "&page_size=" + pageSize
         )
@@ -121,7 +125,7 @@ class Mkzhan extends ComicSource {
 
     search = {
         load: async (keyword, options, page) => {
-            const data = await this.getData(
+            const data = await this.getJson(
                 "https://" + this.apiHost + "/search/keyword/?keyword=" +
                 encodeURIComponent(keyword) + "&page_num=" + page + "&page_size=20"
             )
@@ -136,44 +140,42 @@ class Mkzhan extends ComicSource {
 
     comic = {
         loadInfo: async (id) => {
-            const info = await this.getData(
+            const info = await this.getJson(
                 "https://" + this.apiHost + "/comic/info/?comic_id=" + id
             )
-            const toc = await this.getData(
+            const toc = await this.getJson(
                 "https://" + this.siteHost + "/chapter/?comic_id=" + id
             )
 
-            const chapters = {}
+            const chapters = new Map()
             for (const e of (toc || [])) {
                 const num = e.number ? "第" + e.number + "话 " : ""
-                chapters[String(e.chapter_id)] = (num + (e.title || "")).trim()
+                chapters.set(String(e.chapter_id), (num + (e.title || "")).trim())
             }
 
             const tags = {}
             const themes = this.parseThemes(info.theme_id)
             if (themes.length > 0) tags["题材"] = themes
             tags["状态"] = [info.finish === "1" ? "连载中" : "已完结"]
+            if (info.chapter_title) tags["更新"] = [info.chapter_title]
 
-            return new ComicDetails({
+            return {
                 title: info.title || "",
-                subtitle: info.chapter_title || "",
                 cover: info.cover || "",
                 description: info.content || "",
                 tags: tags,
                 chapters: chapters,
-                isFavorite: null,
-                updateTime: info.chapter_title || "",
-                url: "https://" + this.siteHost + "/" + id + "/",
-            })
+                recommend: [],
+            }
         },
 
         loadEp: async (comicId, epId) => {
-            const data = await this.getData(
+            const data = await this.getJson(
                 "https://" + this.apiHost + "/chapter/content/v1/?chapter_id=" + epId +
                 "&comic_id=" + comicId + "&format=1&quality=1&sign=0&type=1&uid=0"
             )
             const pages = (data && data.page) || []
-            if (pages.length === 0) throw new Error("该章节需要付费/登录，或已下架")
+            if (pages.length === 0) throw "该章节需要付费/登录，或已下架"
             return { images: pages.map((e) => e.image) }
         },
 
